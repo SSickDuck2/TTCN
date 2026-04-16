@@ -1,0 +1,5 @@
+pandas==2.3.3
+numpy==2.4.1
+soccerdata==1.9.0
+thefuzz==0.22.1
+Unidecode==1.4.0
