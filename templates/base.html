@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTCN Trading</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+    <div>
+        <h1>TTCN Live Trading</h1>
+        <p>Player trading and auctions with Live Market experience</p>
+    </div>
+    <nav class="nav-links" id="main-nav">
+        <a href="/trade/market">Market</a>
+        <div class="dropdown" id="account-dropdown" style="display: none;">
+            <a href="javascript:void(0)" class="dropbtn">Account</a>
+            <div class="dropdown-content">
+                <a href="/trade/squad">My Squad</a>
+                <a href="#" id="logout-btn">Log Out</a>
+            </div>
+        </div>
+        <a href="/" id="login-link">Login</a>
+    </nav>
+</header>
+<main>
+    {% block content %}{% endblock %}
+</main>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('ttcn_token');
+        const loginLink = document.getElementById('login-link');
+        const accountDropdown = document.getElementById('account-dropdown');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        if (token) {
+            if (loginLink) loginLink.style.display = 'none';
+            if (accountDropdown) accountDropdown.style.display = 'inline-block';
+        } else {
+            if (loginLink) loginLink.style.display = 'inline-block';
+            if (accountDropdown) accountDropdown.style.display = 'none';
+        }
+
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                localStorage.removeItem('ttcn_token');
+                window.location.href = '/';
+            });
+        }
+    });
+</script>
+</body>
+</html>
