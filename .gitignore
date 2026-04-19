@@ -1,0 +1,6 @@
+TransfermarktDB/
+downloaded_files/
+.venv/
+__pycache__/
+*.docx
+*.csv
