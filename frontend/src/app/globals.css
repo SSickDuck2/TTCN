@@ -1,0 +1,9 @@
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Fixes for Bootstrap class clashing with AntD margins if needed */
+.ant-table-wrapper {
+  margin-bottom: 1rem;
+}

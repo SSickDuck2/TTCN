@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pandas as pd
 from sqlalchemy.orm import Session
-from database import engine, SessionLocal
-from models import Base, PlayerInfo
+from database.database import engine, SessionLocal
+from database.models import Base, PlayerInfo
 
-CSV_PATH = "merged_fbref_transfermarkt.csv"
+CSV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "merged_fbref_transfermarkt.csv")
 
 COLUMN_RENAMES = {
     "nation_": "nation",
