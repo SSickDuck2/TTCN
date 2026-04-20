@@ -1,8 +1,13 @@
 import asyncio
 import logging
 import uvicorn
+import os
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Add the current directory (backend) to sys.path so it can find 'database', 'routers', etc.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database.database import init_db
 from utils import state

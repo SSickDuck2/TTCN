@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Table, Typography, Card, message } from 'antd';
+import { Table, Tag, Typography, Card, message } from 'antd';
 import { fetchApi } from '@/libs/api';
 import { useRouter } from 'next/navigation';
 
@@ -12,7 +12,7 @@ export default function AuctionManagementPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { players } = await fetchApi('/market/players?page=1'); 
+      const { players } = await fetchApi('/market/players?page=1');
       // Instead of getting all players, we will rely on /market/auctions for active
       const activeAuctions = await fetchApi('/market/auctions');
       setAuctions(activeAuctions);
@@ -34,16 +34,31 @@ export default function AuctionManagementPage() {
   };
 
   const columns = [
-    { title: 'Tên cầu thủ', dataIndex: 'player_name', key: 'player_name', render: (text: string, record: any) => (
-      <a onClick={() => router.push(`/trade/player/${record.player_id}`)} style={{ fontWeight: 'bold' }}>{text}</a>
-    ) },
-    { title: 'Đang đấu', dataIndex: 'current_price', key: 'current_price', render: (val: number) => <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{formatMoney(val)}</span> },
-    { title: 'Kết thúc', dataIndex: 'auction_end_time', key: 'end_time', render: (val: string) => new Date(val).toLocaleString() },
+    {
+      title: 'Tên cầu thủ', dataIndex: 'player_name', key: 'player_name', render: (text: string, record: any) => (
+        <a onClick={() => router.push(`/trade/player/${record.player_id}`)} style={{ fontWeight: 'bold' }}>{text}</a>
+      )
+    },
+    { title: 'Giá hiện tại', dataIndex: 'current_price', key: 'current_price', render: (val: number) => <span style={{ color: '#1677ff', fontWeight: 'bold' }}>{formatMoney(val)}</span> },
+    { 
+      title: 'Trạng thái', 
+      dataIndex: 'status', 
+      key: 'status',
+      render: (status: string) => {
+        let config = { color: 'default', text: 'Không xác định' };
+        if (status === 'leading') config = { color: 'success', text: 'Đang dẫn đầu' };
+        if (status === 'outbid') config = { color: 'error', text: 'Đã mất vị trí' };
+        if (status === 'selling') config = { color: 'processing', text: 'Đang bán' };
+        if (status === 'sold') config = { color: 'purple', text: 'Đã bán' };
+        return <Tag color={config.color} style={{ fontWeight: 600 }}>{config.text}</Tag>;
+      }
+    },
+    { title: 'Kết thúc', dataIndex: 'auction_end_time', key: 'end_time', render: (val: string) => new Date(val).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) },
   ];
 
   return (
     <div>
-      <Typography.Title level={2}>Danh sách đang đấu</Typography.Title>
+      <Typography.Title level={2}>Danh sách đang đấu giá</Typography.Title>
       <Card style={{ borderRadius: 8 }}>
         <Table columns={columns} dataSource={auctions} rowKey="listing_id" loading={loading} />
       </Card>
