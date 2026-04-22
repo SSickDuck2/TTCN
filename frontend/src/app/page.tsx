@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
+import { Form, Input, Button, Card, App, Typography } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { message } = App.useApp();
 
   useEffect(() => {
     const token = localStorage.getItem('token');

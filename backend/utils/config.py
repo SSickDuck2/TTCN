@@ -9,7 +9,7 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     MAX_WAGE_BUDGET: float = float(os.getenv("MAX_WAGE_BUDGET", "400000.0"))
     MAX_TOTAL_BUDGET: float = float(os.getenv("MAX_TOTAL_BUDGET", "200000000.0"))
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./ttcn.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./backend/database/ttcn.db")
     
     LEAGUE_OPTIONS = {
         "Premier League": "ENG-Premier League",

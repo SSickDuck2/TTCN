@@ -16,9 +16,13 @@ from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 import logging
+import sys
 
-from database import get_db, init_db
-from models import Club, Player as DBPlayer, ClubPlayer, MarketListing, Bid, BudgetLock, PlayerInfo
+# Add backend to path so moved files can be found
+sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+
+from database.database import get_db, init_db
+from database.models import Club, Player as DBPlayer, ClubPlayer, MarketListing, Bid, BudgetLock, PlayerInfo
 
 # ============================================================================
 # Logging
