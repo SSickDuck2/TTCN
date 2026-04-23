@@ -9,6 +9,7 @@ from utils.config import settings
 from utils import state
 from database.database import SessionLocal
 from database.models import Club, PlayerInfo
+from services.contract_engine import contract_engine
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,20 @@ async def resolve_auction(listing_id: int):
         if winning_club:
             winning_club.budget_remaining -= winning_amount
             winning_club.wage_spent += float(player.get("weekly_wage", 0))
+            
+            # Cập nhật thông tin cũ
             player_info = db.query(PlayerInfo).filter(PlayerInfo.id == player_id).first()
             if player_info:
                 player_info.tm_club = winning_club.name
+                
+            # Tạo mới Hợp đồng với CLB trúng đấu giá sử dụng ContractEngine
+            contract_engine.create_contract(
+                db=db, 
+                player_id=player_id, 
+                club_id=winning_club_id, 
+                base_salary=float(player.get("weekly_wage", 10000)),
+                remaining_years=4
+            )
         db.commit()
         
     for bid in bids:

@@ -11,6 +11,7 @@ from utils.config import settings
 from utils.auth import get_current_club_id
 from utils.services import normalize_text, check_ffp_compliance, lock_budget, unlock_budget, schedule_auction_resolution
 from utils import state
+from services.time_engine import time_engine
 
 router = APIRouter(prefix="/api/market")
 
@@ -186,6 +187,9 @@ async def get_active_auctions(club_id: int = Depends(get_current_club_id)):
 
 @router.post("/bid")
 async def place_bid(request: BidRequest, club_id: int = Depends(get_current_club_id), db: Session = Depends(get_db)):
+    if not time_engine.check_transfer_window_open():
+        raise HTTPException(status_code=403, detail="Thị trường chuyển nhượng đang đóng. Không thể tham gia giao dịch/đấu giá.")
+
     listing_id = request.listing_id
     bid_amount = request.bid_amount
     if listing_id not in state.AUCTION_LISTINGS:
@@ -218,3 +222,69 @@ async def place_bid(request: BidRequest, club_id: int = Depends(get_current_club
         "bid_count": len(auction_data["bids"]), "timestamp": datetime.utcnow().isoformat(),
     })
     return {"message": "Bid placed", "bid_amount": bid_amount, "listing_id": listing_id}
+
+from pydantic import BaseModel
+
+class QuickSellRequest(BaseModel):
+    player_id: int
+
+@router.post("/quick-sell")
+async def quick_sell_to_system(request: QuickSellRequest, club_id: int = Depends(get_current_club_id), db: Session = Depends(get_db)):
+    """Bán thẳng cầu thủ cho Hệ thống (System) lấy tiền ngay bằng 50% giá trị định giá."""
+    if not time_engine.check_transfer_window_open():
+        raise HTTPException(status_code=403, detail="Thị trường đóng. Giao dịch bị khóa.")
+        
+    from database.models import Contract, ContractStatusEnum
+    from services.contract_engine import contract_engine
+    
+    # Kiểm tra xem CLB có đang sở hữu không
+    contract = db.query(Contract).filter(
+        Contract.player_id == request.player_id,
+        Contract.club_id == club_id,
+        Contract.status == ContractStatusEnum.ACTIVE
+    ).first()
+    
+    if not contract:
+        raise HTTPException(status_code=400, detail="Người chơi không thuộc sở hữu của CLB này.")
+        
+    fair_value = contract_engine.calculate_market_value(db, request.player_id)
+    quick_sell_value = fair_value * 0.5  # Ép giá 50%
+    
+    # Cộng tiền cho CLB
+    club = db.query(Club).filter(Club.id == club_id).first()
+    club.budget_remaining += quick_sell_value
+    
+    # Thanh lý hợp đồng
+    contract.status = ContractStatusEnum.TERMINATED
+    db.commit()
+    return {"message": "Quick sell successful", "received": quick_sell_value}
+
+class InquiryRequest(BaseModel):
+    player_id: int
+    
+@router.post("/inquire")
+async def initiate_inquiry(request: InquiryRequest, club_id: int = Depends(get_current_club_id), db: Session = Depends(get_db)):
+    """Gửi lời hỏi mua (Inquiry) cho cầu thủ đang thuộc biên chế CLB khác để tạo phiên Đàm phán trực tiếp."""
+    if not time_engine.check_transfer_window_open():
+        raise HTTPException(status_code=403, detail="Thị trường đóng cửa.")
+        
+    from database.models import Contract, ContractStatusEnum, Negotiation, NegotiationStatusEnum
+    contract = db.query(Contract).filter(
+        Contract.player_id == request.player_id,
+        Contract.status == ContractStatusEnum.ACTIVE
+    ).first()
+    
+    seller_id = contract.club_id if contract else None
+    
+    # Chuyển qua tạo State Đàm Phán Mới (Chuẩn bị cho Bước 6: Negotiation Engine)
+    new_nego = Negotiation(
+        player_id=request.player_id,
+        buying_club_id=club_id,
+        selling_club_id=seller_id,
+        status=NegotiationStatusEnum.INQUIRY
+    )
+    db.add(new_nego)
+    db.commit()
+    db.refresh(new_nego)
+    
+    return {"message": "Inquiry sent. Negotiation phase opened.", "negotiation_id": new_nego.id}
