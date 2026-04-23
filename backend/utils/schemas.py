@@ -10,6 +10,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 class ClubInfo(BaseModel):
+    id: int
     name: str
     budget_remaining: float
     current_wage_budget: float

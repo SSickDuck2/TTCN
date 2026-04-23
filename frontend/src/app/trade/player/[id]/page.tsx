@@ -9,8 +9,8 @@ import {
   ResponsiveContainer, Tooltip as RechartsTooltip,
 } from 'recharts';
 import { fetchApi } from '@/libs/api';
-import { useParams } from 'next/navigation';
-import { ArrowUpOutlined, HistoryOutlined, TrophyOutlined } from '@ant-design/icons';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowUpOutlined, HistoryOutlined, TrophyOutlined, MessageOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -30,9 +30,11 @@ export default function PlayerDetail() {
   const playerId = params.id;
   const { message } = App.useApp();
 
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bidding, setBidding] = useState(false);
+  const [inquiring, setInquiring] = useState(false);
   const [socketBids, setSocketBids] = useState<any[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [highestBidder, setHighestBidder] = useState('Chưa có');
@@ -109,6 +111,22 @@ export default function PlayerDetail() {
       message.error(err.message || 'Lỗi đặt giá');
     } finally {
       setBidding(false);
+    }
+  };
+
+  const handleInquire = async () => {
+    setInquiring(true);
+    try {
+      await fetchApi('/negotiations/inquire', {
+        method: 'POST',
+        body: JSON.stringify({ player_id: Number(playerId) })
+      });
+      message.success('Đã gửi yêu cầu hỏi mua thành công. Vui lòng kiểm tra tab Đàm phán!');
+      router.push(`/trade/negotiate`);
+    } catch (err: any) {
+      message.error(err.message || 'Lỗi khởi tạo đàm phán');
+    } finally {
+      setInquiring(false);
     }
   };
 
@@ -261,9 +279,36 @@ export default function PlayerDetail() {
           </Space>
         </Col>
 
-        {/* Right Section: Auction */}
+        {/* Right Section: Auction & Negotiation */}
         <Col xs={24} lg={7}>
           <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <Card
+              title={
+                <Space>
+                  <MessageOutlined style={{ color: '#fa8c16' }} />
+                  <span>Giao dịch trực tiếp</span>
+                </Space>
+              }
+              bordered={false}
+              className="stat-card"
+              style={{ background: '#fff7e6' }}
+            >
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <Text type="secondary">Bắt đầu phiên đàm phán bí mật với CLB chủ quản.</Text>
+              </div>
+              <Button
+                type="primary"
+                block
+                size="large"
+                icon={<MessageOutlined />}
+                loading={inquiring}
+                onClick={handleInquire}
+                style={{ height: 48, fontWeight: 600, background: '#fa8c16', borderColor: '#fa8c16' }}
+              >
+                HỎI MUA (ĐÀM PHÁN)
+              </Button>
+            </Card>
+
             <Card
               title={
                 <Space>

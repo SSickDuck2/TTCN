@@ -53,8 +53,8 @@ const DEFAULT_FILTERS: Filters = {
   club: null,
   minPrice: null,
   maxPrice: null,
-  minAge: 15,
-  maxAge: 60,
+  minAge: 16,
+  maxAge: 38,
 };
 
 const PAGE_SIZE = 100;
@@ -76,7 +76,6 @@ export default function Market() {
   const [clubs, setClubs] = useState<string[]>([]);
   const [clubsLoading, setClubsLoading] = useState(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [pendingFilters, setPendingFilters] = useState<Filters>(DEFAULT_FILTERS);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildParams = useCallback((f: Filters, pg: number) => {
@@ -125,14 +124,16 @@ export default function Market() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyFilters = () => {
-    setFilters(pendingFilters);
-    setPage(1);
-    loadPlayers(pendingFilters, 1);
+  const updateFilter = (updates: Partial<Filters>) => {
+    setFilters((prev) => {
+      const newF = { ...prev, ...updates };
+      setPage(1);
+      loadPlayers(newF, 1);
+      return newF;
+    });
   };
 
   const resetFilters = () => {
-    setPendingFilters(DEFAULT_FILTERS);
     setFilters(DEFAULT_FILTERS);
     setClubs([]);
     setPage(1);
@@ -140,7 +141,7 @@ export default function Market() {
   };
 
   const handleLeagueChange = (val: string | null) => {
-    setPendingFilters((f) => ({ ...f, league: val ?? null, club: null }));
+    updateFilter({ league: val ?? null, club: null });
     if (val) loadClubs(val);
     else setClubs([]);
   };
@@ -152,25 +153,27 @@ export default function Market() {
   };
 
   const handleNameSearch = (val: string) => {
-    setPendingFilters((f) => ({ ...f, name: val }));
+    setFilters((prev) => ({ ...prev, name: val }));
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
-      const newF = { ...pendingFilters, name: val };
-      setFilters(newF);
-      setPage(1);
-      loadPlayers(newF, 1);
+      setFilters((prev) => {
+        const newF = { ...prev, name: val };
+        setPage(1);
+        loadPlayers(newF, 1);
+        return newF;
+      });
     }, 500);
   };
 
   const isFiltered =
-    !!pendingFilters.position ||
-    !!pendingFilters.league ||
-    !!pendingFilters.club ||
-    pendingFilters.minPrice !== null ||
-    pendingFilters.maxPrice !== null ||
-    pendingFilters.minAge !== DEFAULT_FILTERS.minAge ||
-    pendingFilters.maxAge !== DEFAULT_FILTERS.maxAge ||
-    !!pendingFilters.name;
+    !!filters.position ||
+    !!filters.league ||
+    !!filters.club ||
+    filters.minPrice !== null ||
+    filters.maxPrice !== null ||
+    filters.minAge !== DEFAULT_FILTERS.minAge ||
+    filters.maxAge !== DEFAULT_FILTERS.maxAge ||
+    !!filters.name;
 
   const columns = [
     {
@@ -311,7 +314,7 @@ export default function Market() {
                 <Input
                   prefix={<SearchOutlined style={{ color: '#bbb' }} />}
                   placeholder="Tên cầu thủ..."
-                  value={pendingFilters.name}
+                  value={filters.name}
                   onChange={(e) => handleNameSearch(e.target.value)}
                   allowClear
                   size="small"
@@ -330,8 +333,8 @@ export default function Market() {
                   placeholder="Tất cả"
                   allowClear
                   size="small"
-                  value={pendingFilters.position}
-                  onChange={(val) => setPendingFilters((f) => ({ ...f, position: val ?? null }))}
+                  value={filters.position}
+                  onChange={(val) => updateFilter({ position: val ?? null })}
                 >
                   {POSITIONS.map((p) => (
                     <Option key={p} value={p}>
@@ -352,7 +355,7 @@ export default function Market() {
                   placeholder="Tất cả"
                   allowClear
                   size="small"
-                  value={pendingFilters.league}
+                  value={filters.league}
                   onChange={handleLeagueChange}
                 >
                   {LEAGUES.map((l) => (
@@ -366,16 +369,16 @@ export default function Market() {
                 <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>
                   Câu lạc bộ
                 </Text>
-                <Tooltip title={!pendingFilters.league ? 'Chọn giải đấu trước' : ''}>
+                <Tooltip title={!filters.league ? 'Chọn giải đấu trước' : ''}>
                   <Select
                     style={{ width: '100%' }}
-                    placeholder={pendingFilters.league ? 'Chọn CLB...' : 'Chưa chọn giải'}
+                    placeholder={filters.league ? 'Chọn CLB...' : 'Chưa chọn giải'}
                     allowClear
                     size="small"
-                    disabled={!pendingFilters.league}
+                    disabled={!filters.league}
                     loading={clubsLoading}
-                    value={pendingFilters.club}
-                    onChange={(val) => setPendingFilters((f) => ({ ...f, club: val ?? null }))}
+                    value={filters.club}
+                    onChange={(val) => updateFilter({ club: val ?? null })}
                     showSearch
                     optionFilterProp="children"
                   >
@@ -391,69 +394,49 @@ export default function Market() {
               {/* Price */}
               <div>
                 <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>
-                  Định giá (triệu EUR)
+                  Định giá
                 </Text>
-                <Row gutter={6}>
-                  <Col span={12}>
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      placeholder="Từ"
-                      min={0}
-                      size="small"
-                      value={pendingFilters.minPrice ?? undefined}
-                      onChange={(val) =>
-                        setPendingFilters((f) => ({
-                          ...f,
-                          minPrice: val !== null && val !== undefined ? Number(val) : null,
-                        }))
-                      }
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      placeholder="Đến"
-                      min={0}
-                      size="small"
-                      value={pendingFilters.maxPrice ?? undefined}
-                      onChange={(val) =>
-                        setPendingFilters((f) => ({
-                          ...f,
-                          maxPrice: val !== null && val !== undefined ? Number(val) : null,
-                        }))
-                      }
-                    />
-                  </Col>
-                </Row>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder="Tất cả mức giá"
+                  allowClear
+                  size="small"
+                  value={filters.minPrice !== null ? `${filters.minPrice}-${filters.maxPrice || 'max'}` : null}
+                  onChange={(val) => {
+                    if (!val) {
+                      updateFilter({ minPrice: null, maxPrice: null });
+                      return;
+                    }
+                    const [min, max] = val.split('-');
+                    updateFilter({
+                      minPrice: min ? Number(min) : null,
+                      maxPrice: max !== 'max' ? Number(max) : null,
+                    });
+                  }}
+                >
+                  <Option value="0-10">Dưới 10 triệu €</Option>
+                  <Option value="10-50">10 - 50 triệu €</Option>
+                  <Option value="50-100">50 - 100 triệu €</Option>
+                  <Option value="100-max">Trên 100 triệu €</Option>
+                </Select>
               </div>
 
               {/* Age */}
               <div>
                 <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>
-                  Độ tuổi: {pendingFilters.minAge} – {pendingFilters.maxAge}
+                  Độ tuổi: {filters.minAge} – {filters.maxAge}
                 </Text>
                 <Slider
                   range
-                  min={15}
-                  max={60}
-                  value={[pendingFilters.minAge, pendingFilters.maxAge]}
-                  onChange={(val: number[]) =>
-                    setPendingFilters((f) => ({ ...f, minAge: val[0], maxAge: val[1] }))
-                  }
-                  marks={{ 15: '15', 30: '30', 45: '45', 60: '60' }}
+                  min={16}
+                  max={38}
+                  value={[filters.minAge, filters.maxAge]}
+                  onChange={(val: number[]) => setFilters((f) => ({ ...f, minAge: val[0], maxAge: val[1] }))}
+                  onAfterChange={(val: number[]) => updateFilter({ minAge: val[0], maxAge: val[1] })}
+                  marks={{ 16: '16', 22: '22', 28: '28', 38: '38' }}
                   style={{ marginBottom: 24 }}
                 />
               </div>
-
-              <Button
-                type="primary"
-                block
-                size="middle"
-                icon={<SearchOutlined />}
-                onClick={applyFilters}
-              >
-                Áp dụng
-              </Button>
             </Space>
           </Card>
         </Col>
