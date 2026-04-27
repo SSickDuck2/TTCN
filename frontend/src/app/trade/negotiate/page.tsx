@@ -17,11 +17,11 @@ import { fetchApi } from '@/libs/api';
 const { Title, Text, Paragraph } = Typography;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  INQUIRY:     { label: 'Chờ phản hồi', color: 'processing' },
+  INQUIRY: { label: 'Chờ phản hồi', color: 'processing' },
   NEGOTIATING: { label: 'Đang đàm phán', color: 'warning' },
-  ACCEPTED:    { label: 'Thành công ✓',  color: 'success' },
-  REJECTED:    { label: 'Bị từ chối',    color: 'error' },
-  CANCELLED:   { label: 'Đã hủy',        color: 'default' },
+  ACCEPTED: { label: 'Thành công ✓', color: 'success' },
+  REJECTED: { label: 'Bị từ chối', color: 'error' },
+  CANCELLED: { label: 'Đã hủy', color: 'default' },
 };
 
 function formatM(v: number) {
@@ -73,9 +73,12 @@ export default function NegotiatePage() {
     } catch { /* ignore */ }
   }, []);
 
+  const [clubInfo, setClubInfo] = useState<any>(null);
+
   const loadClub = useCallback(async () => {
     try {
       const res = await fetchApi('/me');
+      setClubInfo(res);
       setMyClubId(res.id);
     } catch { /* ignore */ }
   }, []);
@@ -88,8 +91,8 @@ export default function NegotiatePage() {
 
   const openNego = (nego: any) => {
     setActiveNego(nego);
-    setOfferValue(nego.current_offer || Math.round(nego.fair_value * 0.8));
-    setDemandValue(nego.selling_club_demand || Math.round(nego.fair_value * 1.2));
+    setOfferValue(nego.current_offer || Math.round(nego.market_value * 0.8));
+    setDemandValue(nego.selling_club_demand || Math.round(nego.market_value * 1.2));
     setQaLog([]);
     setModalVisible(true);
   };
@@ -114,6 +117,11 @@ export default function NegotiatePage() {
     setActionLoading(true);
     try {
       const res = await submitOffer(activeNego.id, offerValue);
+      if (!res) return;
+      if (res.error) {
+        message.error(res.error);
+        return;
+      }
       if (res.status === 'ACCEPTED') message.success(`🎉 Deal thành công! Giá chốt: ${formatM(res.final_price)}`);
       else if (res.status === 'CANCELLED') message.warning('Đàm phán kết thúc — quá 3 hiệp.');
       else message.info('Đã gửi giá. Chờ đối phương phản hồi.');
@@ -131,6 +139,11 @@ export default function NegotiatePage() {
     setActionLoading(true);
     try {
       const res = await respondToOffer(activeNego.id, demandValue);
+      if (!res) return;
+      if (res.error) {
+        message.error(res.error);
+        return;
+      }
       if (res.status === 'ACCEPTED') message.success(`🎉 Deal thành công!`);
       else if (res.status === 'CANCELLED') message.warning('Quá 3 hiệp — đàm phán kết thúc.');
       else message.info('Đã phản giá. Bên mua đang xem xét...');
@@ -221,13 +234,18 @@ export default function NegotiatePage() {
                               <Text strong ellipsis>{nego.player_name ?? `Player #${nego.player_id}`}</Text>
                               <Badge status={conf.color as any} text={conf.label} />
                             </Space>
+                            <div style={{ marginTop: -4 }}>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                {myClubId === nego.buying_club_id ? `Đối tác: ${nego.selling_club_name} (Bên bán)` : `Đối tác: ${nego.buying_club_name} (Bên mua)`}
+                              </Text>
+                            </div>
                             <Divider style={{ margin: '6px 0' }} />
                             <Row gutter={8}>
                               <Col span={12}>
-                                <Statistic title="Giá đang bid" value={nego.current_offer || 0} formatter={(v) => formatM(Number(v))} valueStyle={{ fontSize: 14, color: '#1677ff' }} />
+                                <Statistic title={myClubId === nego.buying_club_id ? "Giá bạn bid" : "Giá đối phương bid"} value={nego.current_offer || 0} formatter={(v) => formatM(Number(v))} valueStyle={{ fontSize: 14, color: '#1677ff' }} />
                               </Col>
                               <Col span={12}>
-                                <Statistic title="Giá đối phương" value={nego.selling_club_demand || 0} formatter={(v) => formatM(Number(v))} valueStyle={{ fontSize: 14, color: '#cf1322' }} />
+                                <Statistic title={myClubId === nego.buying_club_id ? "Giá đối phương đòi" : "Giá bạn yêu cầu"} value={nego.selling_club_demand || 0} formatter={(v) => formatM(Number(v))} valueStyle={{ fontSize: 14, color: '#cf1322' }} />
                               </Col>
                             </Row>
                             <Space justify="space-between" style={{ width: '100%' }}>
@@ -254,10 +272,15 @@ export default function NegotiatePage() {
       <Modal
         open={modalVisible}
         title={
-          <Space>
-            <MessageOutlined />
-            <span>Đàm phán: {activeNego?.player_name ?? `Player #${activeNego?.player_id}`}</span>
-            <Tag color={STATUS_CONFIG[activeNego?.status]?.color}>{STATUS_CONFIG[activeNego?.status]?.label}</Tag>
+          <Space direction="vertical" size={0}>
+            <Space>
+              <MessageOutlined />
+              <span>Đàm phán: {activeNego?.player_name ?? `Player #${activeNego?.player_id}`}</span>
+              <Tag color={STATUS_CONFIG[activeNego?.status]?.color}>{STATUS_CONFIG[activeNego?.status]?.label}</Tag>
+            </Space>
+            <Text type="secondary" style={{ fontSize: 12, marginLeft: 22 }}>
+              Đối tác: {myClubId === activeNego?.buying_club_id ? `${activeNego?.selling_club_name} (Bên bán)` : `${activeNego?.buying_club_name} (Bên mua)`}
+            </Text>
           </Space>
         }
         width={680}
@@ -309,7 +332,7 @@ export default function NegotiatePage() {
             {activeNego.status === 'NEGOTIATING' && (
               <>
                 {/* Hỏi đáp Q&A */}
-                <div>
+                {/* <div>
                   <Space style={{ marginBottom: 8 }}>
                     <QuestionCircleOutlined />
                     <Text strong>Hỏi thông tin ({4 - (activeNego.questions_asked_this_round ?? 0)} câu còn lại)</Text>
@@ -332,19 +355,37 @@ export default function NegotiatePage() {
                   )}
                 </div>
 
-                <Divider style={{ margin: '4px 0' }} />
+                <Divider style={{ margin: '4px 0' }} /> */}
 
                 {/* Kéo thanh giá */}
-                <div>
-                  <Text type="secondary"><DollarOutlined /> Giá bạn muốn bid (€M)</Text>
-                  <Slider
-                    min={0} max={500} step={0.5}
-                    value={offerValue / 1_000_000}
-                    onChange={(v) => setOfferValue(v * 1_000_000)}
-                    tooltip={{ formatter: (v) => `€${v}M` }}
-                  />
-                  <Text strong style={{ color: '#1677ff' }}>{formatM(offerValue)}</Text>
-                  <Button type="primary" style={{ marginLeft: 16 }} onClick={handleSubmitOffer} loading={actionLoading}>Gửi giá</Button>
+                <div style={{ marginTop: 8 }}>
+                  {myClubId === activeNego.buying_club_id ? (
+                    <>
+                      <Text type="secondary"><DollarOutlined /> Giá bạn muốn bid (€M)</Text>
+                      <Slider
+                        min={0}
+                        max={Math.floor((clubInfo?.budget_remaining || 500_000_000) / 1_000_000)}
+                        step={0.1}
+                        value={offerValue / 1_000_000}
+                        onChange={(v) => setOfferValue(v * 1_000_000)}
+                        tooltip={{ formatter: (v) => `€${v}M` }}
+                      />
+                      <Text strong style={{ color: '#1677ff' }}>{formatM(offerValue)}</Text>
+                      <Button type="primary" style={{ marginLeft: 16 }} onClick={handleSubmitOffer} loading={actionLoading}>Gửi giá</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Text type="secondary"><DollarOutlined /> Giá bạn muốn phản hồi (€M)</Text>
+                      <Slider
+                        min={0} max={500} step={0.5}
+                        value={demandValue / 1_000_000}
+                        onChange={(v) => setDemandValue(v * 1_000_000)}
+                        tooltip={{ formatter: (v) => `€${v}M` }}
+                      />
+                      <Text strong style={{ color: '#cf1322' }}>{formatM(demandValue)}</Text>
+                      <Button type="primary" danger style={{ marginLeft: 16 }} onClick={handleCounter} loading={actionLoading}>Phản giá</Button>
+                    </>
+                  )}
                 </div>
 
                 <Space style={{ marginTop: 8 }}>

@@ -11,10 +11,12 @@ class TokenResponse(BaseModel):
 
 class ClubInfo(BaseModel):
     id: int
+    username: str
     name: str
     budget_remaining: float
     current_wage_budget: float
     wage_spent: float
+    is_transfer_banned: bool = False
 
 class Player(BaseModel):
     player_id: int

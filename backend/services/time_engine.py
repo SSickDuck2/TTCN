@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from database.database import SessionLocal
-from database.models import SystemState, SystemStateEnum, Negotiation, NegotiationStatusEnum, Contract, ContractStatusEnum
+from database.models import SystemState, SystemStateEnum, Negotiation, NegotiationStatusEnum, Contract, ContractStatusEnum, Club
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class TimeEngine:
     def _init_state(self):
         self.cached_state = SystemStateEnum.TRANSFER_OPEN
         self.cached_date = None
-        self.season_year = 2024
+        self.season_year = 2025
         self.load_from_db()
 
     def load_from_db(self):
@@ -27,8 +27,8 @@ class TimeEngine:
                 if not state:
                     state = SystemState(
                         current_state=SystemStateEnum.TRANSFER_OPEN,
-                        current_date=datetime(2024, 6, 1),
-                        season_year=2024
+                        current_date=datetime(2026, 6, 1),
+                        season_year=2025
                     )
                     db.add(state)
                     db.commit()
@@ -41,9 +41,13 @@ class TimeEngine:
             # DB chưa được init (startup race) — giữ giá trị mặc định an toàn
             logger.warning(f"[TimeEngine] load_from_db failed (DB not ready?): {e}")
             if self.cached_date is None:
-                self.cached_date = datetime(2024, 6, 1)
+                self.cached_date = datetime(2026, 6, 1)
                 self.cached_state = SystemStateEnum.TRANSFER_OPEN
-                self.season_year = 2024
+                self.season_year = 2025
+
+    def force_sync(self):
+        """Buộc TimeEngine tải lại dữ liệu từ DB (dùng sau khi Admin can thiệp)"""
+        self.load_from_db()
 
     def save_to_db(self):
         if not self.cached_date: return
@@ -94,6 +98,19 @@ class TimeEngine:
         new_state = SystemStateEnum.TRANSFER_OPEN if is_open_window else SystemStateEnum.TRANSFER_CLOSED
 
         if new_state != self.cached_state:
+            if self.cached_state == SystemStateEnum.TRANSFER_OPEN and new_state == SystemStateEnum.TRANSFER_CLOSED:
+                # Cửa sổ chuyển nhượng vừa đóng. Kiểm tra vi phạm FFP.
+                with SessionLocal() as db:
+                    clubs = db.query(Club).all()
+                    for club in clubs:
+                        if club.budget_remaining < 0:
+                            club.is_transfer_banned = True
+                            logger.info(f"[FFP] CLB {club.name} bị cấm chuyển nhượng kỳ tới do ngân sách âm ({club.budget_remaining:,.0f}).")
+                        else:
+                            # Nếu đã dương tiền thì gỡ án phạt (nếu có) cho kỳ sau
+                            club.is_transfer_banned = False
+                    db.commit()
+
             self.cached_state = new_state
             logger.info(f"System State transitioned to: {new_state} on {self.cached_date.strftime('%Y-%m-%d')}")
 

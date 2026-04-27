@@ -16,6 +16,7 @@ class Club(Base):
     budget_remaining = Column(Float, default=100000000.0)  # 100M euros
     wage_budget = Column(Float, default=300000.0)  # Weekly wage budget
     wage_spent = Column(Float, default=0.0)  # Currently spent on wages
+    is_transfer_banned = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Season stats (reset mỗi năm)
@@ -165,7 +166,7 @@ class SystemState(Base):
     id = Column(Integer, primary_key=True, index=True)
     current_state = Column(Enum(SystemStateEnum), default=SystemStateEnum.TRANSFER_CLOSED)
     current_date = Column(DateTime, default=datetime.utcnow)
-    season_year = Column(Integer, default=2024)
+    season_year = Column(Integer, default=2025)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class ContractStatusEnum(str, enum.Enum):

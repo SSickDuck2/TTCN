@@ -48,11 +48,15 @@ async def sell_player(request: SellRequest, club_id: int = Depends(get_current_c
     db_player = db.query(PlayerInfo).filter(PlayerInfo.id == request.player_id, PlayerInfo.tm_club == club.name).first()
     if not db_player: raise HTTPException(status_code=404, detail="Player not owned by this club")
 
-    db_player.tm_club = "Free Agent"
     if request.sell_type == "quick_sell":
         market_value = float(db_player.market_value_in_eur or 0.0)
         sell_price = market_value * 0.8
         club.budget_remaining += sell_price
+        
+        db_player.tm_club = "Cầu thủ tự do"
+        db_player.league = "Cầu thủ tự do"
+        db_player.market_value_in_eur = 0.0
+        
         db.commit()
         return {"message": f"Sold for {sell_price:,.0f}"}
     elif request.sell_type == "auction":

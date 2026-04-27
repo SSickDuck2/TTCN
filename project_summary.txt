@@ -1,0 +1,30 @@
+# TÓM TẮT DỰ ÁN: HỆ THỐNG MÔ PHỎNG THỊ TRƯỜNG CHUYỂN NHƯỢNG BÓNG ĐÁ (TTCN)
+
+## 1. Tại sao làm hệ thống này?
+Hệ thống được phát triển nhằm mục đích mô phỏng lại sự phức tạp và chân thực của thị trường chuyển nhượng bóng đá chuyên nghiệp. Các tựa game quản lý bóng đá hiện tại thường đóng gói logic đàm phán thành một "hộp đen", thiếu tính tương tác chân thực. Dự án này ra đời để cung cấp một nền tảng minh bạch, áp dụng trí tuệ nhân tạo (AI) vào việc ra quyết định chuyển nhượng, đồng thời mang lại trải nghiệm mô phỏng quản lý ngân sách, định giá cầu thủ và đàm phán hợp đồng một cách sống động, gắn liền với luật Công bằng tài chính (FFP) và chu kỳ thời gian thực của thị trường.
+
+## 2. Hệ thống này làm cho ai?
+Hệ thống hướng đến những đối tượng:
+- Những người đam mê bóng đá, đặc biệt là các fan của bộ môn quản lý bóng đá (Football Manager, FIFA Career Mode) muốn có một trải nghiệm đàm phán sâu sắc và tương tác hơn.
+- Những người dùng muốn thử thách khả năng quản lý tài chính, tối ưu hóa đội hình dựa trên thông số thống kê chi tiết (dữ liệu xG, xA thực tế từ Understat/FotMob).
+- Những nhà nghiên cứu/lập trình viên muốn tham khảo một hệ thống mô phỏng kinh tế vi mô (Micro-economy simulation) kết hợp với AI hành vi (Behavioral AI) trong môi trường thể thao.
+
+## 3. Các bộ phận và tính năng cốt lõi trong hệ thống web
+
+### A. Giao diện Người dùng (Frontend - Next.js & Ant Design)
+- **Thị trường (Market):** Nơi người chơi khám phá, lọc và tìm kiếm cầu thủ theo các tiêu chí như độ tuổi, định giá, câu lạc bộ, vị trí.
+- **Hồ sơ Cầu thủ (Player Details):** Cung cấp biểu đồ radar và bảng thông số thống kê chuyên sâu (xG, xA, key passes...) của cầu thủ từ các mùa giải trước.
+- **Đàm phán (Negotiations):** Tính năng tương tác chính. Người chơi sẽ gửi lời đề nghị "Hỏi mua" và trực tiếp đàm phán với AI đóng vai trò đại diện câu lạc bộ chủ quản hoặc người đại diện cầu thủ. Quy trình bao gồm: Hỏi giá, Đưa ra mức giá (Offer), Phản giá (Counter-offer) và Chốt thỏa thuận.
+- **Đội hình của tôi (My Squad):** Quản lý danh sách cầu thủ hiện có của câu lạc bộ, theo dõi ngân sách khả dụng, và cho phép "Bán nhanh" cầu thủ thành Cầu thủ tự do để thu hồi vốn.
+
+### B. Hệ thống Xử lý Trung tâm (Backend - FastAPI)
+- **Time Engine (Động cơ Thời gian):** Quản lý chu kỳ thời gian của game, tự động chuyển đổi trạng thái của thị trường (Mở cửa, Đóng cửa, Cuối mùa) và xử lý sự kiện theo ngày tháng ảo trong game.
+- **Negotiation Engine (Động cơ Đàm phán):** AI xử lý logic đồng ý/từ chối hoặc đưa ra mức giá phản hồi dựa trên định giá cầu thủ, ngân sách, và thời gian đàm phán. Hỗ trợ ký hợp đồng với cầu thủ tự do với phí chuyển nhượng 0 đồng.
+- **Contract Engine & FFP:** Hệ thống quản lý hợp đồng và kiểm soát quy định Công bằng tài chính (FFP), chặn các giao dịch vượt quá giới hạn ngân sách hoặc quỹ lương.
+- **AI Simulation (Mô phỏng tự động):** Các câu lạc bộ do AI điều khiển sẽ tự động phân tích thị trường, tự đánh giá nhu cầu đội hình và thực hiện mua bán trao đổi cầu thủ với nhau mà không cần người dùng can thiệp.
+
+### C. Bảng Điều khiển Quản trị (Admin Dashboard)
+- **Sức khỏe Hệ thống:** Theo dõi tổng quan số lượng câu lạc bộ, hợp đồng, và tình trạng nợ ngân sách của các đội bóng trong hệ thống.
+- **Điều khiển Thời gian (Time Control):** Cho phép Admin tua nhanh thời gian (Advance Time) hoặc ép hệ thống chuyển đổi trạng thái thị trường (Force State) để phục vụ cho mục đích thử nghiệm.
+- **Kích hoạt Mô phỏng (Trigger Simulation):** Ép hệ thống chạy ngay lập tức các luồng AI tự động mua bán thay vì chờ chu kỳ ngầm.
+- **Danger Zone (Reset Data):** Khôi phục dữ liệu hệ thống về trạng thái ban đầu. Đặc biệt, quá trình Reset được lập trình để tự động định giá lại "độ giàu" và cấp ngân sách linh hoạt cho từng Câu lạc bộ dựa trên giá trị tổng đội hình thực tế tại thời điểm khôi phục.

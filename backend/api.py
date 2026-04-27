@@ -57,6 +57,9 @@ async def startup_event():
         logger.warning(f"Database initialization: {e}")
         
     def run_simulation_job():
+        if not getattr(state, 'AI_SIMULATION_ENABLED', False):
+            return
+        
         from database.database import SessionLocal
         from services.simulation_engine import simulation_engine
         try:

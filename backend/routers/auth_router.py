@@ -12,21 +12,22 @@ router = APIRouter(prefix="/api")
 
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    try:
-        user = db.query(Club).filter(Club.username == request.username).first()
-        if not user or not verify_password(request.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        access_token = create_access_token(data={"sub": request.username})
-        return TokenResponse(access_token=access_token)
-    except Exception as e:
-        import traceback
-        with open(r"C:\Users\nhan7\study_projects\btn\TTCN\error_log.txt", "w", encoding="utf-8") as f:
-            f.write(traceback.format_exc())
-        raise e
+    user = db.query(Club).filter(Club.username == request.username).first()
+    if not user or not verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    access_token = create_access_token(data={"sub": request.username})
+    return TokenResponse(access_token=access_token)
 
 @router.get("/me", response_model=ClubInfo)
 async def get_me(club_id: int = Depends(get_current_club_id), db: Session = Depends(get_db)):
     club = db.query(Club).filter(Club.id == club_id).first()
     if not club: raise HTTPException(status_code=404, detail="Club not found")
-    return ClubInfo(id=club.id, name=club.name, budget_remaining=club.budget_remaining, current_wage_budget=club.wage_budget, wage_spent=club.wage_spent)
+    return ClubInfo(
+        id=club.id, 
+        username=club.username, 
+        name=club.name, 
+        budget_remaining=club.budget_remaining, 
+        current_wage_budget=club.wage_budget, 
+        wage_spent=club.wage_spent
+    )

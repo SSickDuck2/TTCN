@@ -44,10 +44,10 @@ const HelpModal = ({ visible, onClose }: { visible: boolean; onClose: () => void
 
         <Title level={5}>3. Đàm phán trực tiếp</Title>
         <Paragraph>
-          Tại trang <b>Đàm phán</b>, bạn sẽ trao đổi trực tiếp với máy (AI đóng vai trò CLB chủ quản). Quy trình đàm phán bao gồm:
+          Tại trang <b>Đàm phán</b>, bạn sẽ trao đổi trực tiếp với máy (hệ thống tự động đóng vai trò CLB chủ quản). Quy trình đàm phán bao gồm:
           <ul>
             <li><b>Inquiry (Hỏi giá):</b> CLB chủ quản sẽ trả lời xem họ có muốn bán không và mức giá chào mời ban đầu.</li>
-            <li><b>Hỏi đáp (Q&A):</b> Bạn có thể đặt câu hỏi để nắm bắt tình hình cầu thủ (chấn thương, thái độ, mức lương kỳ vọng, v.v.). AI sẽ phân tích và trả lời theo ngữ cảnh!</li>
+            {/* <li><b>Hỏi đáp (Q&A):</b> Bạn có thể đặt câu hỏi để nắm bắt tình hình cầu thủ (chấn thương, thái độ, mức lương kỳ vọng, v.v.). Hệ thống sẽ phân tích và trả lời theo ngữ cảnh!</li> */}
             <li><b>Trả giá (Offer):</b> Bạn đưa ra mức giá của mình. CLB chủ quản có thể Đồng ý, Từ chối, hoặc Đưa ra mức giá phản hồi (Counter-Offer).</li>
           </ul>
         </Paragraph>
@@ -96,6 +96,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     router.push('/');
   };
 
+  const isAdmin = clubInfo?.username === 'admin';
+
   const userMenuItems = [
     {
       key: 'squad',
@@ -109,12 +111,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       icon: <MessageOutlined />,
       onClick: () => router.push('/trade/negotiate'),
     },
-    {
+    isAdmin ? {
       key: 'admin',
       label: 'Admin',
       icon: <SettingOutlined />,
       onClick: () => router.push('/trade/admin'),
-    },
+    } : null,
     {
       type: 'divider' as const,
     },
@@ -125,7 +127,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       danger: true,
       onClick: handleLogout,
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ConfigProvider
@@ -204,20 +206,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <FileTextOutlined /> Đàm phán
               </a>
 
-              <a
-                onClick={() => router.push('/trade/admin')}
-                style={{
-                  color: pathname.includes('/admin') ? '#1677ff' : '#595959',
-                  fontWeight: pathname.includes('/admin') ? 600 : 400,
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <SettingOutlined /> Admin
-              </a>
+              {isAdmin && (
+                <a
+                  onClick={() => router.push('/trade/admin')}
+                  style={{
+                    color: pathname.includes('/admin') ? '#1677ff' : '#595959',
+                    fontWeight: pathname.includes('/admin') ? 600 : 400,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <SettingOutlined /> Admin
+                </a>
+              )}
 
               <div style={{ width: '1px', height: '24px', background: '#f0f0f0', margin: '0 8px' }} />
 

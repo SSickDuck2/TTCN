@@ -49,12 +49,15 @@ class SimulationEngine:
     def _auto_scan_market(self, db: Session, config: SimulationConfig):
         """AI quét thị trường và gửi Inquiry"""
         club = db.query(Club).filter(Club.id == config.club_id).first()
-        if not club or club.budget_remaining < 5000000:
-            return # Nghèo thì thôi
+        if not club or club.is_transfer_banned:
+            return # Bị cấm chuyển nhượng thì không quét
             
+        # Cho phép nợ (âm tiền), nhưng hạn chế nợ quá sâu (VD: âm quá 100M thì ngừng mua)
+        if club.budget_remaining < -100000000:
+            return
+
         # Tìm ngẫu nhiên cầu thủ giỏi nhưng phù hợp độ tuổi/strategy
         query = db.query(PlayerInfo).filter(
-            PlayerInfo.market_value_in_eur < club.budget_remaining * 0.8,
             PlayerInfo.market_value_in_eur > 1000000
         )
         

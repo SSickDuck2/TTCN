@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from database.database import get_db
-from database.models import Negotiation, NegotiationStatusEnum, PlayerInfo
+from database.models import Negotiation, NegotiationStatusEnum, PlayerInfo, Club
 from utils.auth import get_current_club_id
 from services.negotiation_engine import negotiation_engine
 from services.time_engine import time_engine
@@ -44,7 +44,11 @@ def get_my_negotiations(club_id: int = Depends(get_current_club_id), db: Session
 
     negos = db.query(Negotiation).filter(
         (Negotiation.buying_club_id == club_id) | (Negotiation.selling_club_id == club_id),
-        Negotiation.status.in_([NegotiationStatusEnum.INQUIRY, NegotiationStatusEnum.NEGOTIATING, NegotiationStatusEnum.ACCEPTED])
+        Negotiation.status.in_([
+            NegotiationStatusEnum.INQUIRY, 
+            NegotiationStatusEnum.NEGOTIATING, 
+            NegotiationStatusEnum.ACCEPTED
+        ])
     ).order_by(Negotiation.updated_at.desc()).all()
 
     result = []
@@ -56,16 +60,22 @@ def get_my_negotiations(club_id: int = Depends(get_current_club_id), db: Session
             delta = (n.expires_at_game_date - current_game_date).days
             expires_in_days = max(0, delta)
 
+        buyer = db.query(Club).filter(Club.id == n.buying_club_id).first()
+        seller = db.query(Club).filter(Club.id == n.selling_club_id).first()
+
         result.append({
             "id": n.id,
             "player_id": n.player_id,
             "player_name": player.player_name if player else f"Player #{n.player_id}",
             "player_position": player.position if player else "N/A",
             "buying_club_id": n.buying_club_id,
+            "buying_club_name": buyer.name if buyer else "Unknown",
             "selling_club_id": n.selling_club_id,
+            "selling_club_name": seller.name if seller else "Unknown",
             "status": n.status.value,
             "current_offer": n.current_offer,
             "selling_club_demand": n.selling_club_demand,
+            "market_value": player.market_value_in_eur if player else 0,
             "round_number": n.round_number,
             "questions_asked_this_round": n.questions_asked_this_round,
             "is_public_release_clause": n.is_public_release_clause,
@@ -85,10 +95,17 @@ def get_negotiation_detail(negotiation_id: int, club_id: int = Depends(get_curre
         raise HTTPException(status_code=403, detail="Không có quyền xem phiên đàm phán này")
 
     player = db.query(PlayerInfo).filter(PlayerInfo.id == nego.player_id).first()
+    buyer = db.query(Club).filter(Club.id == nego.buying_club_id).first()
+    seller = db.query(Club).filter(Club.id == nego.selling_club_id).first()
+    
     return {
         "id": nego.id,
         "player_id": nego.player_id,
         "player_name": player.player_name if player else None,
+        "buying_club_id": nego.buying_club_id,
+        "buying_club_name": buyer.name if buyer else "Unknown",
+        "selling_club_id": nego.selling_club_id,
+        "selling_club_name": seller.name if seller else "Unknown",
         "status": nego.status.value,
         "current_offer": nego.current_offer,
         "selling_club_demand": nego.selling_club_demand,

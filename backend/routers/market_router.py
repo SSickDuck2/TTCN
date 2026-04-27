@@ -71,7 +71,7 @@ async def get_market_players(
 
     query = db.query(PlayerInfo).filter(
         PlayerInfo.market_value_in_eur.isnot(None),
-        PlayerInfo.market_value_in_eur > 0,
+        PlayerInfo.market_value_in_eur >= 0,
     )
 
     if current_club_name:
@@ -150,7 +150,7 @@ async def get_market_players(
 
 
 @router.get("/auctions")
-async def get_active_auctions(club_id: int = Depends(get_current_club_id)):
+async def get_active_auctions(club_id: int = Depends(get_current_club_id), db: Session = Depends(get_db)):
     auctions = []
     for listing_id, auction in state.AUCTION_LISTINGS.items():
         astat = auction.get("status")
@@ -174,12 +174,20 @@ async def get_active_auctions(club_id: int = Depends(get_current_club_id)):
                 else:
                     status = "outbid"
 
+                # Lấy danh sách tên các đội đã tham gia bid
+                bidder_ids = [b["club_id"] for b in bids]
+                bidder_names = []
+                if bidder_ids:
+                    from database.models import Club
+                    bidder_names = [c.name for c in db.query(Club).filter(Club.id.in_(bidder_ids)).all()]
+
                 auctions.append({
                     "listing_id": listing_id,
                     "player_id": auction.get("player_id"),
                     "player_name": auction.get("player_data", {}).get("player_name", "Unknown"),
                     "current_price": auction.get("current_price", 0),
                     "status": status,
+                    "bidders": bidder_names,
                     "auction_end_time": auction.get("auction_end_time").isoformat() if auction.get("auction_end_time") else None,
                 })
     return auctions
@@ -195,6 +203,10 @@ async def place_bid(request: BidRequest, club_id: int = Depends(get_current_club
     if listing_id not in state.AUCTION_LISTINGS:
         raise HTTPException(status_code=404, detail="Listing not found")
     auction_data = state.AUCTION_LISTINGS[listing_id]
+    
+    if auction_data.get("seller_club_id") == club_id:
+        raise HTTPException(status_code=400, detail="Bạn không thể đặt giá cho cầu thủ của chính mình.")
+        
     if bid_amount < auction_data.get("current_price", 0):
         raise HTTPException(status_code=400, detail=f"Bid must be at least {auction_data.get('current_price', 0):,.0f} €")
 
@@ -268,6 +280,10 @@ async def initiate_inquiry(request: InquiryRequest, club_id: int = Depends(get_c
     if not time_engine.check_transfer_window_open():
         raise HTTPException(status_code=403, detail="Thị trường đóng cửa.")
         
+    club = db.query(Club).filter(Club.id == club_id).first()
+    if club and club.is_transfer_banned:
+        raise HTTPException(status_code=403, detail="Câu lạc bộ đang bị cấm chuyển nhượng do vi phạm quy định tài chính.")
+        
     from database.models import Contract, ContractStatusEnum, Negotiation, NegotiationStatusEnum
     contract = db.query(Contract).filter(
         Contract.player_id == request.player_id,
@@ -276,6 +292,9 @@ async def initiate_inquiry(request: InquiryRequest, club_id: int = Depends(get_c
     
     seller_id = contract.club_id if contract else None
     
+    if seller_id == club_id:
+        raise HTTPException(status_code=400, detail="Bạn không thể hỏi mua cầu thủ của chính mình.")
+        
     # Chuyển qua tạo State Đàm Phán Mới (Chuẩn bị cho Bước 6: Negotiation Engine)
     new_nego = Negotiation(
         player_id=request.player_id,

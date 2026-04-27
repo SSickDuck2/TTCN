@@ -28,18 +28,14 @@ def get_display_league(league_code: Optional[str]) -> str:
 def check_ffp_compliance(db: Session, club_id: int, new_wage: float, bid_amount: float) -> tuple[bool, str]:
     club = db.query(Club).filter(Club.id == club_id).first()
     if not club: return False, "Club not found"
-    if club.budget_remaining < bid_amount:
-        return False, f"Insufficient budget. Required: {bid_amount:,.0f}, Available: {club.budget_remaining:,.0f}"
+    
+    if club.is_transfer_banned:
+        return False, "Câu lạc bộ đang bị cấm chuyển nhượng do vi phạm quy định tài chính."
         
     new_total_wages = club.wage_spent + new_wage
     if new_total_wages > club.wage_budget:
         excess = new_total_wages - club.wage_budget
         return False, f"Wage budget exceeded by {excess:,.0f}. Max weekly wage: {club.wage_budget:,.0f}"
-        
-    locked_amount = state.CLUB_BUDGET_LOCKS.get(club_id, 0)
-    available_budget = club.budget_remaining - locked_amount
-    if available_budget < bid_amount:
-        return False, f"Insufficient available budget (locked: {locked_amount:,.0f}). Available: {available_budget:,.0f}"
         
     return True, "FFP compliant"
 

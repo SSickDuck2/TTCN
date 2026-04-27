@@ -16,9 +16,42 @@ LEAGUE_DISPLAY = {
     "ligue_1": "Ligue 1",
 }
 
+from sqlalchemy import func
+
 def format_league(raw: str) -> str:
     if not raw: return ""
     return LEAGUE_DISPLAY.get(raw.lower(), raw)
+
+def get_position_averages(db: Session, position: str):
+    """Calculates average per-90 stats for a specific position."""
+    # Filter out players with very few minutes to avoid outliers
+    players = db.query(PlayerInfo).filter(
+        PlayerInfo.position == position,
+        PlayerInfo.time >= 270  # At least 3 full matches
+    ).all()
+    
+    if not players: return {}
+    
+    sums = {
+        "goals": 0, "assists": 0, "xg": 0, "xa": 0,
+        "shots": 0, "key_passes": 0, "xgchain": 0, "xgbuildup": 0
+    }
+    count = 0
+    
+    for p in players:
+        mins = p.time or 1
+        factor = 90 / mins
+        sums["goals"] += (p.goals or 0) * factor
+        sums["assists"] += (p.assists or 0) * factor
+        sums["xg"] += (p.xG or 0) * factor
+        sums["xa"] += (p.xA or 0) * factor
+        sums["shots"] += (p.shots or 0) * factor
+        sums["key_passes"] += (p.key_passes or 0) * factor
+        sums["xgchain"] += (p.xGChain or 0) * factor
+        sums["xgbuildup"] += (p.xGBuildup or 0) * factor
+        count += 1
+        
+    return {k: v / count for k, v in sums.items()}
 
 @router.get("/{player_id}")
 async def get_player_api(player_id: int, db: Session = Depends(get_db)):
@@ -55,6 +88,7 @@ async def get_player_api(player_id: int, db: Session = Depends(get_db)):
     return {
         "player": {
             "id": player.id, "name": player.player_name, "club": player.tm_club or player.team_title,
+            "original_club": player.team_title,
             "position": player.position, "age": player.age, "nation": None,
             "market_value": player.market_value_in_eur, "league": format_league(player.league),
             "foot": player.foot, "height": player.height_in_cm,
@@ -65,8 +99,6 @@ async def get_player_api(player_id: int, db: Session = Depends(get_db)):
                 "assists": player.assists,
                 "shots": player.shots,
                 "key_passes": player.key_passes,
-                "yellow_cards": player.yellow_cards,
-                "red_cards": player.red_cards,
                 "xG": player.xG,
                 "xA": player.xA,
                 "npg": player.npg,
@@ -75,5 +107,6 @@ async def get_player_api(player_id: int, db: Session = Depends(get_db)):
                 "xGBuildup": player.xGBuildup
             }
         },
+        "position_avg": get_position_averages(db, player.position),
         "auction": auction_info
     }

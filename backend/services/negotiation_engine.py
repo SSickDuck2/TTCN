@@ -40,19 +40,41 @@ class NegotiationEngine:
 
     def initiate_inquiry(self, db: Session, buying_club_id: int, player_id: int) -> Negotiation:
         """Bắt đầu hỏi giá/trao đổi"""
-        # Kiểm tra xen có đang đàm phán không
+        # 1. Xác định người bán
+        contract = db.query(Contract).filter(
+            Contract.player_id == player_id,
+            Contract.status == ContractStatusEnum.ACTIVE
+        ).first()
+        
+        seller_id = None
+        if contract:
+            seller_id = contract.club_id
+        else:
+            # Fallback: Dùng tm_club từ player_info để tìm club_id
+            player_info = db.query(PlayerInfo).filter(PlayerInfo.id == player_id).first()
+            if player_info and player_info.tm_club:
+                seller_club = db.query(Club).filter(Club.name == player_info.tm_club).first()
+                if seller_club:
+                    seller_id = seller_club.id
+        
+        # 1. Kiểm tra ban
+        buyer = db.query(Club).filter(Club.id == buying_club_id).first()
+        if buyer and buyer.is_transfer_banned:
+            logger.warning(f"Club {buying_club_id} is banned from transfers.")
+            return None
+
+        # NGĂN CHẶN TỰ MUA CHÍNH MÌNH
+        if seller_id == buying_club_id:
+            logger.warning(f"Club {buying_club_id} tried to inquiry their own player {player_id}")
+            return None
+
+        # 2. Kiểm tra xem có đang đàm phán không
         exist = db.query(Negotiation).filter(
             Negotiation.player_id == player_id,
             Negotiation.buying_club_id == buying_club_id,
             Negotiation.status.in_([NegotiationStatusEnum.INQUIRY, NegotiationStatusEnum.NEGOTIATING])
         ).first()
         if exist: return exist
-
-        contract = db.query(Contract).filter(
-            Contract.player_id == player_id,
-            Contract.status == ContractStatusEnum.ACTIVE
-        ).first()
-        seller_id = contract.club_id if contract else None
 
         state = db.query(SystemState).first()
         expires_date = (state.current_date + timedelta(days=3)) if state and state.current_date else None
@@ -69,6 +91,24 @@ class NegotiationEngine:
         db.add(new_nego)
         db.commit()
         db.refresh(new_nego)
+
+        # TỰ ĐỘNG PHẢN HỒI NẾU LÀ ĐỘI BÓNG HỆ THỐNG QUẢN LÝ (Hoặc Cầu thủ tự do)
+        if seller_id is None:
+            # Cầu thủ tự do -> Mua ngay lập tức
+            new_nego.status = NegotiationStatusEnum.ACCEPTED
+            new_nego.current_offer = 0
+            new_nego.selling_club_demand = 0
+            db.commit()
+            self._execute_transfer(db, new_nego)
+        elif seller_id and seller_id != buying_club_id:
+            # Lấy giá trị định giá làm mốc
+            player_info = db.query(PlayerInfo).filter(PlayerInfo.id == player_id).first()
+            market_val = player_info.market_value_in_eur if player_info else 0
+            demand = market_val * 1.2
+            # System auto-accepts inquiry and sets demand
+            self.respond_to_inquiry(db, new_nego.id, accept=True, initial_demand=demand)
+            db.refresh(new_nego)
+
         return new_nego
 
     def respond_to_inquiry(self, db: Session, negotiation_id: int, accept: bool, initial_demand: float = 0.0):
@@ -127,6 +167,12 @@ class NegotiationEngine:
 
     def _check_deal_intersection(self, db: Session, nego: Negotiation):
         """Tự động chốt deal khi hai mức giá giao nhau trong ngưỡng cho phép"""
+        # Nếu đã qua 3 hiệp trao đổi mà không khớp -> Cắt đứt ngay
+        if nego.round_number > 3:
+            nego.status = NegotiationStatusEnum.CANCELLED
+            db.commit()
+            return {"status": "CANCELLED", "reason": "Quá 3 vòng đàm phán."}
+
         # Nếu mua >= bán HOẶC sự chênh lệch (gap) <= 5% giá trị bán
         if nego.current_offer > 0 and nego.selling_club_demand > 0:
             if nego.current_offer >= nego.selling_club_demand * 0.95:
@@ -136,12 +182,6 @@ class NegotiationEngine:
                 db.commit()
                 return {"status": "ACCEPTED", "final_price": nego.current_offer}
         
-        # Nếu đã qua 3 hiệp trao đổi mà không khớp
-        if nego.round_number > 3:
-            nego.status = NegotiationStatusEnum.CANCELLED
-            db.commit()
-            return {"status": "CANCELLED", "reason": "Quá 3 vòng đàm phán."}
-
         return {"status": "NEGOTIATING", "current_offer": nego.current_offer, "demand": nego.selling_club_demand}
 
     def cancel_negotiation(self, db: Session, negotiation_id: int, actor_club_id: int):
@@ -170,6 +210,15 @@ class NegotiationEngine:
         player_info = db.query(PlayerInfo).filter(PlayerInfo.id == nego.player_id).first()
         if player_info and buyer:
             player_info.tm_club = buyer.name
+            
+            # Tìm giải đấu của club mới một cách chính xác nhất
+            from sqlalchemy import func
+            league_res = db.query(PlayerInfo.league, func.count(PlayerInfo.id)).filter(
+                PlayerInfo.tm_club == buyer.name
+            ).group_by(PlayerInfo.league).order_by(func.count(PlayerInfo.id).desc()).first()
+            
+            if league_res:
+                player_info.league = league_res[0]
 
         # Tạo hợp đồng mới
         contract_engine.create_contract(
@@ -179,6 +228,16 @@ class NegotiationEngine:
             base_salary=50000.0, # Sẽ được update ở UI sau
             remaining_years=4
         )
+
+        # HỦY TẤT CẢ CÁC ĐÀM PHÁN KHÁC CỦA CẦU THỦ NÀY
+        other_negos = db.query(Negotiation).filter(
+            Negotiation.player_id == nego.player_id,
+            Negotiation.id != nego.id,
+            Negotiation.status.in_([NegotiationStatusEnum.INQUIRY, NegotiationStatusEnum.NEGOTIATING])
+        ).all()
+        for on in other_negos:
+            on.status = NegotiationStatusEnum.CANCELLED
+        db.commit()
 
     def get_available_questions(self):
         """Trả về danh sách 20 câu preset cho Frontend hiển thị"""

@@ -35,18 +35,33 @@ export default function PlayerDetail() {
   const [loading, setLoading] = useState(true);
   const [bidding, setBidding] = useState(false);
   const [inquiring, setInquiring] = useState(false);
+  const [hasNego, setHasNego] = useState(false);
   const [socketBids, setSocketBids] = useState<any[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [highestBidder, setHighestBidder] = useState('Chưa có');
   const [bidValue, setBidValue] = useState<number>(0);
+  const [myClub, setMyClub] = useState<string | null>(null);
+  const [positionAvg, setPositionAvg] = useState<any>(null);
 
   useEffect(() => {
     if (!playerId) return;
 
     const loadPlayer = async () => {
       try {
-        const res = await fetchApi(`/player/${playerId}`);
+        const [res, me, negos] = await Promise.all([
+          fetchApi(`/player/${playerId}`),
+          fetchApi('/me').catch(() => null),
+          fetchApi('/negotiations/my').catch(() => [])
+        ]);
+        
         setData(res.player);
+        setMyClub(me?.name || null);
+        setPositionAvg(res.position_avg);
+
+        // Check if current player is in my negotiations
+        const existing = negos.find((n: any) => n.player_id === Number(playerId));
+        if (existing) setHasNego(true);
+
         if (res.auction) {
           setCurrentPrice(res.auction.current_price);
           setHighestBidder(res.auction.highest_bidder);
@@ -131,35 +146,40 @@ export default function PlayerDetail() {
   };
 
   const radarData = useMemo(() => {
-    if (!data || !data.stats) return [];
+    if (!data || !data.stats || !positionAvg) return [];
     const stats = data.stats;
     const mins = stats.minutes || 1;
     const per90 = (val: number) => (val || 0) / mins * 90;
 
-    const MAX_VALS: Record<string, { label: string, max: number }> = {
-      G90: { label: "Bàn thắng / 90'", max: 1.0 },
-      xG90: { label: "Bàn thắng kỳ vọng (xG) / 90'", max: 1.0 },
-      Sh90: { label: "Dứt điểm / 90'", max: 5.0 },
-      A90: { label: "Kiến tạo / 90'", max: 0.5 },
-      xA90: { label: "Kiến tạo kỳ vọng (xA) / 90'", max: 0.5 },
-      KP90: { label: "Cơ hội tạo ra (KP) / 90'", max: 3.5 },
-      xGC90: { label: "Chuỗi xG (xGChain) / 90'", max: 1.5 },
-      xGB90: { label: "Phát triển bóng (xGBuildup) / 90'", max: 1.5 },
+    const STAT_KEYS: Record<string, { label: string, key: string, avgKey: string }> = {
+      G90: { label: "Bàn thắng / 90'", key: 'goals', avgKey: 'goals' },
+      xG90: { label: "Bàn thắng kỳ vọng (xG) / 90'", key: 'xG', avgKey: 'xg' },
+      Sh90: { label: "Dứt điểm / 90'", key: 'shots', avgKey: 'shots' },
+      A90: { label: "Kiến tạo / 90'", key: 'assists', avgKey: 'assists' },
+      xA90: { label: "Kiến tạo kỳ vọng (xA) / 90'", key: 'xA', avgKey: 'xa' },
+      KP90: { label: "Cơ hội tạo ra (KP) / 90'", key: 'key_passes', avgKey: 'key_passes' },
+      xGC90: { label: "Chuỗi xG (xGChain) / 90'", key: 'xGChain', avgKey: 'xgchain' },
+      xGB90: { label: "Phát triển bóng (xGBuildup) / 90'", key: 'xGBuildup', avgKey: 'xgbuildup' },
     };
 
-    const keys = ["G90", "xG90", "Sh90", "A90", "xA90", "KP90", "xGC90", "xGB90"];
-    return keys.map(k => {
-      const config = MAX_VALS[k];
-      const raw = per90(stats[k.toLowerCase()] || stats[{ 'G90': 'goals', 'xG90': 'xG', 'Sh90': 'shots', 'A90': 'assists', 'xA90': 'xA', 'KP90': 'key_passes', 'xGC90': 'xGChain', 'xGB90': 'xGBuildup' }[k] || 'goals']);
-      const normalized = Math.min(110, (raw / config.max) * 100);
+    return Object.keys(STAT_KEYS).map(k => {
+      const config = STAT_KEYS[k];
+      const raw = per90(stats[config.key] || 0);
+      const avg = positionAvg[config.avgKey] || 0.001;
+      
+      // Calculate normalized value: 50 = Average, 100 = 2x Average
+      const ratio = raw / avg;
+      const normalized = Math.min(110, ratio * 50);
+
       return {
         subject: k,
         fullLabel: config.label,
         value: normalized,
         rawValue: raw.toFixed(2),
+        avgValue: avg.toFixed(2),
       };
     });
-  }, [data]);
+  }, [data, positionAvg]);
 
   const tableStats = useMemo(() => {
     if (!data || !data.stats) return [];
@@ -170,7 +190,7 @@ export default function PlayerDetail() {
     return [{
       key: '1',
       season: '2023/2024',
-      team: data.club,
+      team: data.original_club || data.club,
       apps: s.matches,
       min: s.minutes,
       g: s.goals,
@@ -231,7 +251,10 @@ export default function PlayerDetail() {
                                 <div style={{ background: '#fff', padding: '8px 12px', border: '1px solid #f0f0f0', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{item.fullLabel}</div>
                                   <div style={{ color: '#1677ff', fontSize: 14 }}>
-                                    Giá trị: <span style={{ fontWeight: 700 }}>{item.rawValue}</span>
+                                    Của cầu thủ: <span style={{ fontWeight: 700 }}>{item.rawValue}</span>
+                                  </div>
+                                  <div style={{ color: '#8c8c8c', fontSize: 13 }}>
+                                    Trung bình vị trí: <span style={{ fontWeight: 500 }}>{item.avgValue}</span>
                                   </div>
                                 </div>
                               );
@@ -282,116 +305,48 @@ export default function PlayerDetail() {
         {/* Right Section: Auction & Negotiation */}
         <Col xs={24} lg={7}>
           <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            <Card
-              title={
-                <Space>
-                  <MessageOutlined style={{ color: '#fa8c16' }} />
-                  <span>Giao dịch trực tiếp</span>
-                </Space>
-              }
-              bordered={false}
-              className="stat-card"
-              style={{ background: '#fff7e6' }}
-            >
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <Text type="secondary">Bắt đầu phiên đàm phán bí mật với CLB chủ quản.</Text>
-              </div>
-              <Button
-                type="primary"
-                block
-                size="large"
-                icon={<MessageOutlined />}
-                loading={inquiring}
-                onClick={handleInquire}
-                style={{ height: 48, fontWeight: 600, background: '#fa8c16', borderColor: '#fa8c16' }}
-              >
-                HỎI MUA (ĐÀM PHÁN)
-              </Button>
-            </Card>
-
-            <Card
-              title={
-                <Space>
-                  <TrophyOutlined style={{ color: '#faad14' }} />
-                  <span>Đấu giá trực tiếp</span>
-                </Space>
-              }
-              bordered={false}
-              className="stat-card"
-              style={{ background: '#f0f7ff' }}
-            >
-              <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <Text type="secondary">Giá hiện tại</Text>
-                <Title level={2} style={{ color: '#1677ff', margin: '4px 0' }}>
-                  {formatMoney(Math.max(currentPrice, data.market_value))}
-                </Title>
-                <div style={{ marginTop: 8 }}>
-                  <Text type="secondary">Đang dẫn đầu:</Text>
-                  <div style={{ marginTop: 4 }}>
-                    <Badge status="processing" text={<Text strong>{highestBidder === 'None' || !highestBidder ? 'Chưa có' : highestBidder}</Text>} />
-                  </div>
-                </div>
-              </div>
-
-              <Divider style={{ margin: '16px 0' }} />
-
-              <div style={{ marginTop: 16 }}>
-                <InputNumber
-                  style={{ width: '100%', marginBottom: 12 }}
-                  size="large"
-                  min={Math.max(currentPrice, data.market_value) + 1}
-                  value={bidValue}
-                  onChange={(val) => setBidValue(Number(val))}
-                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €'}
-                  parser={value => value!.replace(/\s?€/g, '').replace(/\./g, '')}
-                  className="custom-bid-input"
-                />
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  icon={<ArrowUpOutlined />}
-                  loading={bidding}
-                  onClick={() => handleBid(bidValue)}
-                  style={{ height: 48, fontWeight: 600 }}
+            {data.club === myClub ? (
+              <Card bordered={false} className="stat-card" style={{ textAlign: 'center', background: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                <TrophyOutlined style={{ fontSize: 24, color: '#52c41a', marginBottom: 12 }} />
+                <Title level={5} style={{ margin: 0, color: '#52c41a' }}>Đây là cầu thủ của bạn</Title>
+                <Text type="secondary">Bạn không thể thực hiện giao dịch với chính cầu thủ của mình.</Text>
+              </Card>
+            ) : (
+              <>
+                <Card
+                  title={
+                    <Space>
+                      <MessageOutlined style={{ color: '#fa8c16' }} />
+                      <span>Giao dịch trực tiếp</span>
+                    </Space>
+                  }
+                  bordered={false}
+                  className="stat-card"
+                  style={{ background: '#fff7e6' }}
                 >
-                  ĐẶT GIÁ NGAY
-                </Button>
-              </div>
-            </Card>
-
-            <Card
-              title={
-                <Space>
-                  <HistoryOutlined />
-                  <span>Lịch sử đặt giá</span>
-                </Space>
-              }
-              size="small"
-              bordered={false}
-              className="stat-card"
-            >
-              {socketBids.length > 0 ? (
-                <Timeline
-                  style={{ marginTop: 16 }}
-                  items={socketBids.map((b, i) => ({
-                    color: i === 0 ? 'blue' : 'gray',
-                    children: (
-                      <div>
-                        <Text strong>{b.bidder}</Text>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: 12 }}>{b.time}</Text>
-                        <div style={{ color: '#389e0d', fontWeight: 600 }}>{formatMoney(b.amount)}</div>
-                      </div>
-                    )
-                  }))}
-                />
-              ) : (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <Text type="secondary italic">Chưa có lượt đặt giá nào</Text>
-                </div>
-              )}
-            </Card>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <Text type="secondary">Bắt đầu phiên đàm phán bí mật với CLB chủ quản.</Text>
+                  </div>
+                  <Button
+                    type="primary"
+                    block
+                    size="large"
+                    icon={<MessageOutlined />}
+                    loading={inquiring}
+                    disabled={hasNego}
+                    onClick={handleInquire}
+                    style={{ 
+                      height: 48, 
+                      fontWeight: 600, 
+                      background: hasNego ? '#d9d9d9' : '#fa8c16', 
+                      borderColor: hasNego ? '#d9d9d9' : '#fa8c16' 
+                    }}
+                  >
+                    {hasNego ? 'ĐÃ GỬI YÊU CẦU ĐÀM PHÁN' : 'HỎI MUA (ĐÀM PHÁN)'}
+                  </Button>
+                </Card>
+              </>
+            )}
           </Space>
         </Col>
       </Row>
