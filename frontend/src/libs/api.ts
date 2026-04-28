@@ -142,6 +142,20 @@ export async function adminTriggerSimulation() {
   });
 }
 
+export async function adminGetClubsInDebt() {
+  return fetchApi('/admin/clubs/debt');
+}
+
+export async function adminGetSimulationStatus() {
+  return fetchApi('/admin/simulation/status');
+}
+
+export async function adminToggleSimulation() {
+  return fetchApi('/admin/simulation/toggle', {
+    method: 'POST',
+  });
+}
+
 export async function adminResetData() {
   return fetchApi('/admin/data/reset', {
     method: 'POST',
@@ -150,4 +164,14 @@ export async function adminResetData() {
 
 export async function adminSystemHealth() {
   return fetchApi('/admin/system/health');
+}
+
+export async function adminGetAllNegotiations() {
+  return fetchApi('/admin/negotiations');
+}
+
+export async function adminCancelNegotiation(id: number) {
+  return fetchApi(`/admin/negotiations/${id}/cancel`, {
+    method: 'POST',
+  });
 }

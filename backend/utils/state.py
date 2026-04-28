@@ -38,3 +38,5 @@ class ConnectionManager:
 manager = ConnectionManager()
 scheduler = BackgroundScheduler()
 async_event_loop = None
+
+AI_SIMULATION_ENABLED = False

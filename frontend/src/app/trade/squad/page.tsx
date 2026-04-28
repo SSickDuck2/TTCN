@@ -61,29 +61,6 @@ export default function SquadPage() {
     });
   };
 
-  const handleAuction = (playerId: number, name: string) => {
-    modal.confirm({
-      title: `Đưa ${name} lên sàn đấu giá?`,
-      content: <div>
-        <p>Chọn thời gian đấu giá (phút):</p>
-        <InputNumber min={5} max={120} defaultValue={30} id={`duration_${playerId}`} style={{ width: '100%' }} />
-      </div>,
-      onOk: async () => {
-        const duration = (document.getElementById(`duration_${playerId}`) as any)?.value || 30;
-        try {
-          await fetchApi('/squad/sell', {
-            method: 'POST',
-            body: JSON.stringify({ player_id: playerId, sell_type: 'auction', duration_minutes: Number(duration) })
-          });
-          message.success(`Đã đưa ${name} lên sàn đấu giá`);
-          loadData();
-        } catch (error: any) {
-          message.error(error.message || 'Lỗi khi đưa lên đấu giá');
-        }
-      }
-    });
-  };
-
   const columns = [
     { title: 'Tên cầu thủ', dataIndex: 'name', key: 'name', render: (text: string, record: any) => (
       <a onClick={() => router.push(`/trade/player/${record.player_id}`)} style={{ fontWeight: 'bold' }}>{text}</a>
@@ -100,7 +77,6 @@ export default function SquadPage() {
       render: (_: any, record: any) => (
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <Button type="primary" danger size="small" onClick={() => handleQuickSell(record.player_id, record.name, record.market_value)}>Bán nhanh</Button>
-          <Button type="default" size="small" onClick={() => handleAuction(record.player_id, record.name)}>Đấu giá</Button>
         </div>
       ),
     },

@@ -53,6 +53,20 @@ export default function AuctionManagementPage() {
         return <Tag color={config.color} style={{ fontWeight: 600 }}>{config.text}</Tag>;
       }
     },
+    {
+      title: 'Đội tham gia',
+      dataIndex: 'bidders',
+      key: 'bidders',
+      render: (bidders: string[]) => (
+        <div style={{ maxWidth: 200 }}>
+          {bidders && bidders.length > 0 ? (
+            bidders.map(b => <Tag key={b} color="blue" style={{ marginBottom: 4 }}>{b}</Tag>)
+          ) : (
+            <span style={{ color: '#bfbfbf' }}>Chưa có ai</span>
+          )}
+        </div>
+      )
+    },
     { title: 'Kết thúc', dataIndex: 'auction_end_time', key: 'end_time', render: (val: string) => new Date(val).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) },
   ];
 
