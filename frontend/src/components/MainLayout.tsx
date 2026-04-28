@@ -177,20 +177,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               >
                 <ShopOutlined /> Thị trường
               </a>
-              <a
-                onClick={() => router.push('/trade/auction')}
-                style={{
-                  color: pathname.includes('/auction') ? '#1677ff' : '#595959',
-                  fontWeight: pathname.includes('/auction') ? 600 : 400,
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <TrophyOutlined /> Quản lý Đấu giá
-              </a>
+
               <a
                 onClick={() => router.push('/trade/negotiate')}
                 style={{
